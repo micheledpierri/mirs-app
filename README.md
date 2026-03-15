@@ -55,7 +55,7 @@ MIRS bridges the gap between scientific evidence and public perception for any m
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/mirs-app.git
+git clone https://github.com/micheledpierri/mirs-app.git
 cd mirs-app
 
 # Create virtual environment
@@ -162,19 +162,44 @@ The Evidence Strength Score is a composite metric (0–100) calculated as a weig
 
 If you use MIRS in academic work, please cite:
 
-> Pierri MD. MIRS: Medical Intelligence Report System — An AI-augmented framework for evidence-perception gap analysis in medicine. 2026. Available at: https://github.com/YOUR_USERNAME/mirs-app
+> Pierri MDP. MIRS: Medical Intelligence Report System — An AI-augmented framework for evidence-perception gap analysis in medicine. 2026. Available at: https://github.com/micheledpierri/mirs-app
 
 ---
 
 ## License
 
-[To be determined — recommend MIT or Apache 2.0 for maximum academic adoption]
+This project is licensed under the MIT License — see below.
+
+```
+MIT License
+
+Copyright (c) 2026 Michele Danilo Pierri
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ---
 
 ## Author
 
-**Michele D. Pierri, MD**  
-Cardiothoracic Surgeon  
+**Michele Danilo Pierri, MD, PhD**  
+Cardiothoracic Surgeon · Medical Data Scientist  
+[micheledpierri.com](https://micheledpierri.com)
 
 *MIRS is developed as a research tool for the medical community. It is not intended to replace clinical judgment or peer-reviewed systematic reviews.*
