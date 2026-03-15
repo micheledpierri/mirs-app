@@ -1,0 +1,12 @@
+# MIRS — Streamlit Web Version
+# requirements.txt
+
+streamlit>=1.32.0
+plotly>=5.18
+biopython>=1.83
+pytrends>=4.9
+urllib3==1.26.18
+anthropic>=0.39
+fpdf2>=2.7
+pandas>=2.1
+python-dotenv>=1.0
