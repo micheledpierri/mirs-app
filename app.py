@@ -922,16 +922,19 @@ def _render_synthesis_tab():
 
 
 def _render_export_tab():
-    """Render the Export tab with PDF and CSV downloads."""
+    """Render the Export tab with PDF, CSV, and RIS downloads."""
     articles = st.session_state["articles"]
     if not articles:
         st.info("Run a search first to export results.")
         return
 
+    n_included = sum(1 for a in articles if a.get("included", True))
     st.markdown('<div class="section-header">📤 Export Results</div>',
                 unsafe_allow_html=True)
+    st.caption(f"{n_included} included articles will be exported "
+               f"(of {len(articles)} total)")
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
         st.markdown("#### 📄 PDF Report")
@@ -1006,6 +1009,32 @@ def _render_export_tab():
                     )
                 except Exception as e:
                     st.error(f"CSV generation failed: {e}")
+
+    with col3:
+        st.markdown("#### 📚 RIS (Reference Manager)")
+        st.caption("Import directly into Zotero, Mendeley, "
+                   "EndNote, or any reference manager.")
+        include_ris_abstracts = st.checkbox("Include abstracts in RIS", value=True)
+
+        if st.button("Generate RIS", use_container_width=True):
+            try:
+                from report.ris_exporter import articles_to_ris_string
+
+                ris_data = articles_to_ris_string(
+                    articles=articles,
+                    include_abstracts=include_ris_abstracts,
+                )
+
+                topic_slug = st.session_state["query_topic"][:40].replace(" ", "_")
+                st.download_button(
+                    "⬇️ Download RIS",
+                    data=ris_data,
+                    file_name=f"MIRS_{topic_slug}_{datetime.now():%Y%m%d}.ris",
+                    mime="application/x-research-info-systems",
+                    use_container_width=True,
+                )
+            except Exception as e:
+                st.error(f"RIS generation failed: {e}")
 
 
 # ---------------------------------------------------------------------------
