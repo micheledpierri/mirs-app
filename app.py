@@ -355,14 +355,16 @@ def _init_state():
         "search_done": False,
         "synthesis_done": False,
         "session_search_count": 0,
-        # New: date preset state
+        # Date preset state
         "date_preset": "1Y",  # Default to 1 year
         "custom_date_from": "",
         "custom_date_to": "",
-        # New: AI Query Builder state
+        # AI Query Builder state
         "show_ai_query_builder": False,
         "ai_query_description": "",
         "ai_generated_query": "",
+        "topic_value": "",
+        "show_ai_success": False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -394,18 +396,31 @@ def _render_sidebar():
         st.markdown("### New Analysis")
 
         # --- Clinical Topic Input ---
+        # Use session state to hold the topic value (enables AI Query Builder to set it)
+        if "topic_value" not in st.session_state:
+            st.session_state["topic_value"] = ""
+        
+        # If AI generated a query, update the topic value
+        if st.session_state.get("ai_generated_query"):
+            st.session_state["topic_value"] = st.session_state["ai_generated_query"]
+            st.session_state["ai_generated_query"] = ""  # Clear after transfer
+            st.session_state["show_ai_success"] = True
+        
         topic = st.text_input(
             "Clinical Topic",
-            value=st.session_state.get("ai_generated_query", ""),
+            value=st.session_state.get("topic_value", ""),
             placeholder='e.g. "aortic dissection type A repair"',
             help="Enter a clinical topic or PubMed query. Use the AI Query Builder for help.",
-            key="topic_input",
         )
+        
+        # Update session state when user types
+        st.session_state["topic_value"] = topic
         
         # --- AI Query Builder Button ---
         if st.button("🤖 AI Query Builder", use_container_width=True, 
                      help="Describe what you're looking for in plain language and AI will generate an optimized PubMed query"):
             st.session_state["show_ai_query_builder"] = not st.session_state.get("show_ai_query_builder", False)
+            st.session_state["show_ai_success"] = False
         
         # --- AI Query Builder Panel ---
         if st.session_state.get("show_ai_query_builder", False):
@@ -421,7 +436,6 @@ def _render_sidebar():
                 placeholder="Example: I want to find studies about minimally invasive approaches for mitral valve repair in elderly patients with high surgical risk",
                 height=100,
                 label_visibility="collapsed",
-                key="ai_description_input",
             )
             
             col_gen, col_cancel = st.columns(2)
@@ -449,11 +463,12 @@ def _render_sidebar():
             
             st.markdown('</div>', unsafe_allow_html=True)
         
-        # Show the generated query if it was just created
-        if st.session_state.get("ai_generated_query") and topic == st.session_state.get("ai_generated_query"):
-            st.success("✅ AI-generated query loaded. Review and run the analysis.")
-            if st.button("🔄 Clear AI Query", use_container_width=True):
-                st.session_state["ai_generated_query"] = ""
+        # Show success message if AI query was just loaded
+        if st.session_state.get("show_ai_success", False):
+            st.success("✅ AI-generated query loaded!")
+            if st.button("🔄 Clear", use_container_width=True):
+                st.session_state["topic_value"] = ""
+                st.session_state["show_ai_success"] = False
                 st.rerun()
 
         st.markdown("")  # Spacer
@@ -461,31 +476,34 @@ def _render_sidebar():
         # --- Date Range Section ---
         st.markdown("**Publication Date Range**")
         
-        # Date preset buttons
+        # Date preset buttons - compact labels
         st.caption("Quick select:")
         col1, col2, col3, col4 = st.columns(4)
         
         current_preset = st.session_state.get("date_preset", "1Y")
         
         with col1:
-            if st.button("1 Year", use_container_width=True, 
-                        type="primary" if current_preset == "1Y" else "secondary"):
+            if st.button("1Y", use_container_width=True, 
+                        type="primary" if current_preset == "1Y" else "secondary",
+                        help="Last 1 year"):
                 st.session_state["date_preset"] = "1Y"
                 st.session_state["custom_date_from"] = ""
                 st.session_state["custom_date_to"] = ""
                 st.rerun()
         
         with col2:
-            if st.button("5 Years", use_container_width=True,
-                        type="primary" if current_preset == "5Y" else "secondary"):
+            if st.button("5Y", use_container_width=True,
+                        type="primary" if current_preset == "5Y" else "secondary",
+                        help="Last 5 years"):
                 st.session_state["date_preset"] = "5Y"
                 st.session_state["custom_date_from"] = ""
                 st.session_state["custom_date_to"] = ""
                 st.rerun()
         
         with col3:
-            if st.button("10 Years", use_container_width=True,
-                        type="primary" if current_preset == "10Y" else "secondary"):
+            if st.button("10Y", use_container_width=True,
+                        type="primary" if current_preset == "10Y" else "secondary",
+                        help="Last 10 years"):
                 st.session_state["date_preset"] = "10Y"
                 st.session_state["custom_date_from"] = ""
                 st.session_state["custom_date_to"] = ""
@@ -493,7 +511,8 @@ def _render_sidebar():
         
         with col4:
             if st.button("Custom", use_container_width=True,
-                        type="primary" if current_preset == "custom" else "secondary"):
+                        type="primary" if current_preset == "custom" else "secondary",
+                        help="Set custom date range"):
                 st.session_state["date_preset"] = "custom"
                 st.rerun()
         
@@ -611,8 +630,9 @@ def _run_search(params: dict):
     st.session_state["synthesis_text"] = ""
     st.session_state["synthesis_done"] = False
     
-    # Clear AI generated query after use
+    # Clear AI Query Builder state after use
     st.session_state["ai_generated_query"] = ""
+    st.session_state["show_ai_success"] = False
 
     progress = st.status(f"Analyzing: **{topic}**", expanded=True)
 
