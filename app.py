@@ -7,7 +7,11 @@ analysis, Google Trends data, Evidence Strength Scoring, and AI-powered
 synthesis to generate comprehensive medical intelligence reports.
 
 Author: Michele D. Pierri
-Version: 1.0-web (March 2026)
+Version: 1.1-web (April 2026)
+
+Changelog v1.1:
+- Added date range presets (1 Year, 5 Years, 10 Years) with quick-select buttons
+- Added AI Query Builder: natural language to PubMed query conversion via Claude
 """
 
 import streamlit as st
@@ -17,6 +21,7 @@ import io
 import tempfile
 import os
 from datetime import datetime, date
+from dateutil.relativedelta import relativedelta
 
 # ---------------------------------------------------------------------------
 # Page config (MUST be first Streamlit command)
@@ -225,10 +230,114 @@ def _inject_css():
             padding: 1rem 0;
             border-top: 1px solid #21262d;
         }
+        
+        /* Date preset buttons - custom styling */
+        .date-preset-active {
+            background-color: #238636 !important;
+            color: white !important;
+            border-color: #238636 !important;
+        }
+        
+        /* AI Query Builder styling */
+        .ai-query-box {
+            background: linear-gradient(135deg, #1a2332 0%, #1e2838 100%);
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 0.5rem;
+        }
         </style>
         """,
         unsafe_allow_html=True,
     )
+
+
+# ---------------------------------------------------------------------------
+# AI Query Builder
+# ---------------------------------------------------------------------------
+
+def _build_pubmed_query_with_ai(description: str, api_key: str) -> str | None:
+    """
+    Use Claude API to convert a natural language description
+    into an optimized PubMed search query.
+    
+    Returns the generated query string, or None if generation fails.
+    """
+    try:
+        import anthropic
+        
+        client = anthropic.Anthropic(api_key=api_key)
+        
+        system_prompt = """You are a PubMed search query expert. Your task is to convert 
+natural language descriptions of medical research topics into optimized PubMed search queries.
+
+Guidelines:
+1. Use appropriate MeSH terms when applicable (e.g., "Heart Failure"[MeSH])
+2. Use Boolean operators (AND, OR, NOT) appropriately
+3. Use field tags where helpful: [Title/Abstract], [MeSH], [Author], [Journal]
+4. Use quotation marks for exact phrases
+5. Consider synonyms and alternative terms connected with OR
+6. Keep queries focused but comprehensive
+7. Avoid overly complex nested queries that might return zero results
+
+IMPORTANT: Return ONLY the PubMed query string, nothing else. No explanations, 
+no markdown, no quotation marks around the entire query. Just the raw query text."""
+
+        user_prompt = f"""Convert this research description into a PubMed search query:
+
+"{description}"
+
+Return only the optimized PubMed query string."""
+
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=500,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+        
+        query = response.content[0].text.strip()
+        # Remove any surrounding quotes if present
+        if query.startswith('"') and query.endswith('"'):
+            query = query[1:-1]
+        if query.startswith("'") and query.endswith("'"):
+            query = query[1:-1]
+        
+        return query
+        
+    except Exception as e:
+        st.error(f"AI Query Builder failed: {e}")
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Date Range Helpers
+# ---------------------------------------------------------------------------
+
+def _get_date_range_preset(preset: str) -> tuple[str, str]:
+    """
+    Calculate date range based on preset selection.
+    
+    Args:
+        preset: One of "1Y", "5Y", "10Y"
+    
+    Returns:
+        Tuple of (date_from, date_to) in YYYY/MM/DD format
+    """
+    today = date.today()
+    date_to = today.strftime("%Y/%m/%d")
+    
+    if preset == "1Y":
+        date_from = (today - relativedelta(years=1)).strftime("%Y/%m/%d")
+    elif preset == "5Y":
+        date_from = (today - relativedelta(years=5)).strftime("%Y/%m/%d")
+    elif preset == "10Y":
+        date_from = (today - relativedelta(years=10)).strftime("%Y/%m/%d")
+    else:
+        # Default to 1 year
+        date_from = (today - relativedelta(years=1)).strftime("%Y/%m/%d")
+    
+    return date_from, date_to
 
 
 # ---------------------------------------------------------------------------
@@ -246,6 +355,14 @@ def _init_state():
         "search_done": False,
         "synthesis_done": False,
         "session_search_count": 0,
+        # New: date preset state
+        "date_preset": "1Y",  # Default to 1 year
+        "custom_date_from": "",
+        "custom_date_to": "",
+        # New: AI Query Builder state
+        "show_ai_query_builder": False,
+        "ai_query_description": "",
+        "ai_generated_query": "",
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -276,17 +393,136 @@ def _render_sidebar():
 
         st.markdown("### New Analysis")
 
+        # --- Clinical Topic Input ---
         topic = st.text_input(
             "Clinical Topic",
+            value=st.session_state.get("ai_generated_query", ""),
             placeholder='e.g. "aortic dissection type A repair"',
-            help="Enter a clinical topic. Use specific terms for better results.",
+            help="Enter a clinical topic or PubMed query. Use the AI Query Builder for help.",
+            key="topic_input",
         )
+        
+        # --- AI Query Builder Button ---
+        if st.button("🤖 AI Query Builder", use_container_width=True, 
+                     help="Describe what you're looking for in plain language and AI will generate an optimized PubMed query"):
+            st.session_state["show_ai_query_builder"] = not st.session_state.get("show_ai_query_builder", False)
+        
+        # --- AI Query Builder Panel ---
+        if st.session_state.get("show_ai_query_builder", False):
+            st.markdown(
+                '<div class="ai-query-box">',
+                unsafe_allow_html=True,
+            )
+            st.caption("💡 Describe your research question in plain language:")
+            
+            ai_description = st.text_area(
+                "Research description",
+                value=st.session_state.get("ai_query_description", ""),
+                placeholder="Example: I want to find studies about minimally invasive approaches for mitral valve repair in elderly patients with high surgical risk",
+                height=100,
+                label_visibility="collapsed",
+                key="ai_description_input",
+            )
+            
+            col_gen, col_cancel = st.columns(2)
+            with col_gen:
+                if st.button("✨ Generate Query", use_container_width=True, type="primary",
+                            disabled=not ai_description.strip()):
+                    if not config.ANTHROPIC_API_KEY:
+                        st.error("Anthropic API key not configured.")
+                    else:
+                        with st.spinner("Generating optimized query..."):
+                            generated = _build_pubmed_query_with_ai(
+                                ai_description.strip(),
+                                config.ANTHROPIC_API_KEY
+                            )
+                            if generated:
+                                st.session_state["ai_generated_query"] = generated
+                                st.session_state["ai_query_description"] = ai_description
+                                st.session_state["show_ai_query_builder"] = False
+                                st.rerun()
+            
+            with col_cancel:
+                if st.button("Cancel", use_container_width=True):
+                    st.session_state["show_ai_query_builder"] = False
+                    st.rerun()
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Show the generated query if it was just created
+        if st.session_state.get("ai_generated_query") and topic == st.session_state.get("ai_generated_query"):
+            st.success("✅ AI-generated query loaded. Review and run the analysis.")
+            if st.button("🔄 Clear AI Query", use_container_width=True):
+                st.session_state["ai_generated_query"] = ""
+                st.rerun()
 
-        col1, col2 = st.columns(2)
+        st.markdown("")  # Spacer
+        
+        # --- Date Range Section ---
+        st.markdown("**Publication Date Range**")
+        
+        # Date preset buttons
+        st.caption("Quick select:")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        current_preset = st.session_state.get("date_preset", "1Y")
+        
         with col1:
-            date_from = st.text_input("From (YYYY/MM/DD)", value="", placeholder="2019/01/01")
+            if st.button("1 Year", use_container_width=True, 
+                        type="primary" if current_preset == "1Y" else "secondary"):
+                st.session_state["date_preset"] = "1Y"
+                st.session_state["custom_date_from"] = ""
+                st.session_state["custom_date_to"] = ""
+                st.rerun()
+        
         with col2:
-            date_to = st.text_input("To (YYYY/MM/DD)", value="", placeholder="2025/12/31")
+            if st.button("5 Years", use_container_width=True,
+                        type="primary" if current_preset == "5Y" else "secondary"):
+                st.session_state["date_preset"] = "5Y"
+                st.session_state["custom_date_from"] = ""
+                st.session_state["custom_date_to"] = ""
+                st.rerun()
+        
+        with col3:
+            if st.button("10 Years", use_container_width=True,
+                        type="primary" if current_preset == "10Y" else "secondary"):
+                st.session_state["date_preset"] = "10Y"
+                st.session_state["custom_date_from"] = ""
+                st.session_state["custom_date_to"] = ""
+                st.rerun()
+        
+        with col4:
+            if st.button("Custom", use_container_width=True,
+                        type="primary" if current_preset == "custom" else "secondary"):
+                st.session_state["date_preset"] = "custom"
+                st.rerun()
+        
+        # Calculate effective dates based on preset or show custom inputs
+        if current_preset == "custom":
+            col_from, col_to = st.columns(2)
+            with col_from:
+                date_from = st.text_input(
+                    "From", 
+                    value=st.session_state.get("custom_date_from", ""),
+                    placeholder="YYYY/MM/DD",
+                    key="custom_from_input",
+                )
+            with col_to:
+                date_to = st.text_input(
+                    "To", 
+                    value=st.session_state.get("custom_date_to", ""),
+                    placeholder="YYYY/MM/DD",
+                    key="custom_to_input",
+                )
+            # Store custom values
+            st.session_state["custom_date_from"] = date_from
+            st.session_state["custom_date_to"] = date_to
+        else:
+            # Use preset dates
+            date_from, date_to = _get_date_range_preset(current_preset)
+            st.caption(f"📅 {date_from} → {date_to}")
+
+        st.markdown("")  # Spacer
 
         article_type_options = [
             "Clinical Trial",
@@ -335,7 +571,7 @@ def _render_sidebar():
         st.divider()
         st.markdown(
             '<div class="mirs-footer">'
-            'MIRS v1.0-web<br>'
+            'MIRS v1.1-web<br>'
             'Michele Danilo Pierri MD, PhD<br>'
             '<a href="https://micheledpierri.com" target="_blank" '
             'style="color:#58a6ff; text-decoration:none;">micheledpierri.com</a><br>'
@@ -348,8 +584,8 @@ def _render_sidebar():
     return {
         "run": run_search,
         "topic": topic.strip(),
-        "date_from": date_from.strip() or None,
-        "date_to": date_to.strip() or None,
+        "date_from": date_from.strip() if date_from else None,
+        "date_to": date_to.strip() if date_to else None,
         "article_types": selected_types or None,
         "fetch_trends": fetch_trends,
     }
@@ -374,6 +610,9 @@ def _run_search(params: dict):
     st.session_state["query_topic"] = topic
     st.session_state["synthesis_text"] = ""
     st.session_state["synthesis_done"] = False
+    
+    # Clear AI generated query after use
+    st.session_state["ai_generated_query"] = ""
 
     progress = st.status(f"Analyzing: **{topic}**", expanded=True)
 
