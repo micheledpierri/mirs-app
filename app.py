@@ -231,11 +231,25 @@ def _inject_css():
             border-top: 1px solid #21262d;
         }
         
-        /* Date preset buttons - custom styling */
-        .date-preset-active {
-            background-color: #238636 !important;
-            color: white !important;
-            border-color: #238636 !important;
+        /* Sidebar compact buttons */
+        [data-testid="stSidebar"] button {
+            font-size: 0.8rem !important;
+            padding: 0.3rem 0.5rem !important;
+            min-height: 2rem !important;
+        }
+        
+        /* Even smaller for date preset buttons (in columns) */
+        [data-testid="stSidebar"] [data-testid="column"] button {
+            font-size: 0.75rem !important;
+            padding: 0.25rem 0.4rem !important;
+            min-height: 1.8rem !important;
+        }
+        
+        /* Keep primary action buttons slightly larger */
+        [data-testid="stSidebar"] button[kind="primary"] {
+            font-size: 0.85rem !important;
+            padding: 0.4rem 0.6rem !important;
+            min-height: 2.2rem !important;
         }
         
         /* AI Query Builder styling */
